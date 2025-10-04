@@ -18,7 +18,30 @@ public class Currency {
         detectArbitrage(currencies, exchangeRates);
 
         // Task 2: Find Best Conversion Rate
-        findBestConversionRate(currencies, exchangeRates, "NZD", "GBP");
+        Scanner scanner = new Scanner(System.in);
+        
+        // Display available currencies
+        System.out.println("\nAvailable currencies:");
+        for (String currency : currencies) {
+            System.out.print(currency + " ");
+        }
+        
+        // Get source currency
+        System.out.print("\n\nEnter source currency: ");
+        String source = scanner.nextLine().toUpperCase();
+        
+        // Get target currency
+        System.out.print("Enter target currency: ");
+        String target = scanner.nextLine().toUpperCase();
+        
+        // Validate currencies
+        if (Arrays.asList(currencies).contains(source) && Arrays.asList(currencies).contains(target)) {
+            findBestConversionRate(currencies, exchangeRates, source, target);
+        } else {
+            System.out.println("Error: Invalid currency code(s). Please use one of the available currencies.");
+        }
+        
+        scanner.close();
     }
 
     // Task 1: Detect Arbitrage Opportunities
@@ -62,17 +85,17 @@ public class Currency {
         for (int u = 0; u < n; u++) {
             for (int v = 0; v < n; v++) {
                 if (distances[u] != Double.MAX_VALUE && distances[u] + logRates[u][v] < distances[v]) {
-                    System.out.println("Arbitrage opportunity detected!");
-                    printCycle(predecessors, v, currencies);
+                    System.out.println("\nArbitrage opportunity detected!");
+                    printCycle(predecessors, v, currencies, exchangeRates);
                     return;
                 }
             }
         }
 
-        System.out.println("No arbitrage opportunities detected.");
+        System.out.println("\nNo arbitrage opportunities detected.");
     }
 
-    private static void printCycle(int[] predecessors, int start, String[] currencies) {
+    private static void printCycle(int[] predecessors, int start, String[] currencies, double[][] exchangeRates) {
         List<Integer> cycle = new ArrayList<>();
         Set<Integer> visited = new HashSet<>();
         int current = start;
@@ -90,6 +113,30 @@ public class Currency {
 
         cycle.add(cycleStart);
         Collections.reverse(cycle);
+
+        // Calculate profit percentage
+        double profit = 1.0;
+        for (int i = 0; i < cycle.size() - 1; i++) {
+            int from = cycle.get(i);
+            int to = cycle.get(i + 1);
+            profit *= exchangeRates[from][to];
+        }
+
+        // Calculate profit for the final step back to start
+        int lastIndex = cycle.get(cycle.size() - 1);
+        int startIndex = cycle.get(0);
+        profit *= exchangeRates[lastIndex][startIndex];
+
+        // Calculate profit percentage
+        double profitPercentage = (profit - 1.0) * 100;
+
+        System.out.print("Arbitrage cycle: ");
+        for (int i = 0; i < cycle.size(); i++) {
+            System.out.print(currencies[cycle.get(i)]);
+            if (i < cycle.size() - 1) System.out.print(" -> ");
+        }
+        System.out.println(" -> " + currencies[cycle.get(0)]);
+        System.out.printf("Profit percentage: %.2f%%\n", profitPercentage);
 
         System.out.print("Arbitrage cycle: ");
         for (int i = 0; i < cycle.size(); i++) {
@@ -218,5 +265,12 @@ public class Currency {
 
         double bestRate = Math.exp(-distances[targetIndex]);
         System.out.println("Best conversion rate from " + source + " to " + target + ": " + bestRate);
+
+        // Calculate profit percentage for a round trip
+        double roundTripRate = bestRate * exchangeRates[targetIndex][sourceIndex];
+        double profitPercentage = (roundTripRate - 1.0) * 100;
+        
+        System.out.printf("Profit for %s -> %s -> %s: %.2f%%\n", 
+            source, target, source, profitPercentage);
     }
 }
