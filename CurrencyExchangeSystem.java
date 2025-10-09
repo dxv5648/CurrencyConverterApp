@@ -5,54 +5,63 @@ import java.io.*;
 public class CurrencyExchangeSystem {
     
     // API Configuration
-    private static final String API_URL = "https://api.exchangerate-api.com/v4/latest/";
+    private static final String API_URL = "https://api.frankfurter.app/latest";
     private static final double EPSILON = 1e-9; // For floating-point precision
     
     public static void main(String[] args) {
+        Scanner scanner = new Scanner(System.in);
         System.out.println("Currency Exchange Analyzer with Real-Time Data\n");
+        System.out.println("Choose mode:");
+        System.out.println("1. Run with real-time data");
+        System.out.println("2. Manual input");
+        System.out.println("3. Run tests");
+        int choice = scanner.nextInt();
+        scanner.nextLine(); // Consume newline
         
-        // Test with assignment example (arbitrage case)
-        System.out.println("TEST: Assignment Example with Arbitrage");
-        testAssignmentExample();
+        String[] currencies = null;
+        double[][] exchangeRates = null;
         
-        // Test with randomized rates
-        System.out.println("\nTEST: Randomized Exchange Rates");
-        testRandomizedRates();
-        
-        // Main analysis with real-time data
-        System.out.println("\nMain Analysis with Real-Time Data");
-        
-        // Define currencies to analyze (10 major world currencies)
-        String[] currencies = {"USD", "EUR", "JPY", "GBP", "AUD", "CAD", "CHF", "CNY", "NZD", "SGD"};
-        
-        System.out.println("Fetching real-time exchange rates...");
-        double[][] exchangeRates = fetchRealTimeRates(currencies);
-        
-        if (exchangeRates == null) {
-            System.out.println("Failed to fetch real-time data.");
+        if (choice == 1) {
+            // Real-time data
+            currencies = new String[]{"USD", "EUR", "JPY", "GBP", "AUD", "CAD", "CHF", "CNY", "NZD", "SGD"};
+            System.out.println("Fetching real-time exchange rates...");
+            exchangeRates = fetchRealTimeRates(currencies);
+            if (exchangeRates == null) {
+                System.out.println("Failed to fetch real-time data. Check your internet connection");
+                System.exit(1);
+            }
+        } else if (choice == 2) {
+            // Manual input
+            System.out.println("Enter input in the format: n, CUR1, CUR2, ..., CURn");
+            System.out.println("Followed by n*n exchange rates, one per line.");
+            Object[] input = readManualInput(scanner);
+            currencies = (String[]) input[0];
+            exchangeRates = (double[][]) input[1];
+        } else if (choice == 3) {
+            // Run tests
+            testAssignmentExample(); // Arbitrage with 5 currencies
+            testRandomizedRates(); // Random, may have arbitrage, 5 currencies
+            testBetterIntermediate(); // No arbitrage but better intermediate path, 5 currencies
+            testNoArbitrageCase(); // No arbitrage, consistent rates, 5 currencies
+            testRealWorldRates(); // Real-world rates from API, 5 currencies
+            System.exit(0);
+        } else {
+            System.out.println("Invalid choice.");
             System.exit(1);
         }
-        
-        // Display the exchange rate matrix
-        displayExchangeRates(currencies, exchangeRates);
+
         
         // Task 1: Detect Arbitrage Opportunities
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("TASK 1: ARBITRAGE DETECTION");
-        System.out.println("=".repeat(60));
+        System.out.println("\n TASK 1: ARBITRAGE DETECTION \n");
         boolean hasArbitrage = detectArbitrage(currencies, exchangeRates);
         
         // Task 2: Find Best Conversion Rate (only if no arbitrage)
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("TASK 2: BEST CONVERSION RATE FINDER");
-        System.out.println("=".repeat(60));
+        System.out.println("\nTASK 2: BEST CONVERSION RATE FINDER\n");
         
         if (hasArbitrage) {
             System.out.println("Warning: Arbitrage detected! Best conversion rate may be infinite by exploiting cycles.");
             System.out.println("Proceeding with calculation assuming no infinite profit loops.");
         }
-        
-        Scanner scanner = new Scanner(System.in);
         
         System.out.println("\nAvailable currencies: " + String.join(", ", currencies));
         System.out.print("\nEnter source currency: ");
@@ -71,37 +80,138 @@ public class CurrencyExchangeSystem {
     }
     
     /**
-     * Test method for the example given in the assignment PDF (arbitrage case)
+     * Reads manual input from scanner in the specified format.
+     * @param scanner Scanner for input
+     * @return Object[] {currencies, exchangeRates}
+     */
+    private static Object[] readManualInput(Scanner scanner) {
+        String line = scanner.nextLine();
+        String[] parts = line.split(",");
+        int n = Integer.parseInt(parts[0].trim());
+        String[] currencies = new String[n];
+        for (int i = 0; i < n; i++) {
+            currencies[i] = parts[i + 1].trim();
+        }
+        double[][] rates = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                rates[i][j] = scanner.nextDouble();
+            }
+        }
+        scanner.nextLine(); // Consume if needed
+        return new Object[]{currencies, rates};
+    }
+    
+    /**
+     * Test method for the example given in the assignment PDF (arbitrage case), expanded to 5 currencies.
      */
     private static void testAssignmentExample() {
-        String[] currencies = {"A", "B", "C"};
-        double[][] exchangeRates = {
-            {1.0, 0.651, 0.584},  // A to A, A to B, A to C (1/rCA ≈0.584)
-            {1.536, 1.0, 0.952},  // B to A (1/rAB ≈1.536), B to B, B to C
-            {1.711, 1.050, 1.0}   // C to A, C to B (1/rBC ≈1.050), C to C
-        };
-        
-        displayExchangeRates(currencies, exchangeRates);
+        System.out.println("TEST: Assignment Example with Arbitrage (Expanded to 5 currencies)");
+        String[] currencies = {"A", "B", "C", "D", "E"};
+        double[][] exchangeRates = new double[5][5];
+        // Original 3x3
+        exchangeRates[0] = new double[]{1.0, 0.651, 0.584, 1.0, 1.0};
+        exchangeRates[1] = new double[]{1.536, 1.0, 0.952, 1.0, 1.0};
+        exchangeRates[2] = new double[]{1.711, 1.050, 1.0, 1.0, 1.0};
+        exchangeRates[3] = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
+        exchangeRates[4] = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         detectArbitrage(currencies, exchangeRates);
     }
     
     /**
-     * Test method for randomized exchange rates (may or may not have arbitrage)
+     * Test method for randomized exchange rates (may or may not have arbitrage), 5 currencies.
      */
     private static void testRandomizedRates() {
-        int n = 5;  // Small n for demonstration
+        System.out.println("\nTEST: Randomized Exchange Rates (5 currencies)");
+        int n = 5;
         String[] currencies = new String[n];
         for (int i = 0; i < n; i++) {
             currencies[i] = "C" + (i + 1);
         }
         
         double[][] exchangeRates = generateRandomRates(n);
-        displayExchangeRates(currencies, exchangeRates);
         detectArbitrage(currencies, exchangeRates);
-        
         // Explanation for report: Randomized rates generated between 0.01 and 2.01 to simulate varied exchanges.
         // Diagonal set to 1.0. This may introduce arbitrage due to inconsistency.
     }
+    
+    /**
+     * Test method for no arbitrage but better intermediate path, 5 currencies.
+     */
+    private static void testBetterIntermediate() {
+        System.out.println("\nTEST: No Arbitrage but Better Intermediate Path (5 currencies)");
+        String[] currencies = {"A", "B", "C", "D", "E"};
+        double[][] exchangeRates = new double[5][5];
+        for (int i = 0; i < 5; i++) {
+            for (int j = 0; j < 5; j++) {
+                exchangeRates[i][j] = (i == j ? 1.0 : 1.0); // Default 1
+            }
+        }
+        // Triangle for better path
+        int A = 0, B = 1, C = 2, D = 3, E = 4;
+        exchangeRates[A][B] = 2.0; exchangeRates[B][A] = 0.4;
+        exchangeRates[B][C] = 2.0; exchangeRates[C][B] = 0.4;
+        exchangeRates[A][C] = 1.0; exchangeRates[C][A] = 0.25;
+        // Adjust for D to avoid arb
+        exchangeRates[A][D] = 1.0; exchangeRates[D][A] = 1.0;
+        exchangeRates[B][D] = 0.5; exchangeRates[D][B] = 2.0;
+        exchangeRates[C][D] = 0.25; exchangeRates[D][C] = 4.0;
+        // Adjust for E similar
+        exchangeRates[A][E] = 1.0; exchangeRates[E][A] = 1.0;
+        exchangeRates[B][E] = 0.5; exchangeRates[E][B] = 2.0;
+        exchangeRates[C][E] = 0.25; exchangeRates[E][C] = 4.0;
+        exchangeRates[D][E] = 1.0; exchangeRates[E][D] = 1.0;
+        boolean hasArbitrage = detectArbitrage(currencies, exchangeRates);
+        if (!hasArbitrage) {
+            // Test best conversion A to C, should use via B, rate 4 >1 direct
+            findBestConversionRate(currencies, exchangeRates, "A", "C");
+        }
+    }
+
+    /**
+ * TEST: No arbitrage case with consistent rates (5 currencies)
+ * This demonstrates a market in equilibrium where no arbitrage exists.
+ */
+private static void testNoArbitrageCase() {
+    System.out.println("\nTEST: No Arbitrage - Equilibrium Market (5 currencies)");
+    String[] currencies = {"USD", "EUR", "GBP", "JPY", "AUD"};
+    double[][] exchangeRates = new double[5][5];
+    
+    // Set up consistent rates: USD base rates
+    double[] usdRates = {1.0, 0.85, 0.73, 110.0, 1.35}; // USD, EUR, GBP, JPY, AUD
+    
+    // Calculate consistent cross-rates to avoid arbitrage
+    for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 5; j++) {
+            exchangeRates[i][j] = usdRates[j] / usdRates[i];
+        }
+    }
+    
+    System.out.println("Explanation: All rates calculated from USD base to ensure consistency");
+    System.out.println("Formula: rate(i→j) = usdRate[j] / usdRate[i]");
+    detectArbitrage(currencies, exchangeRates);
+}
+
+/**
+ * TEST: Real-world rates from API (5 currencies minimum)
+ * Fetches live data to test with actual market conditions.
+ */
+private static void testRealWorldRates() {
+    System.out.println("\nTEST: Real-World Exchange Rates from API (5 currencies)");
+    String[] currencies = {"USD", "EUR", "GBP", "JPY", "AUD"};
+    System.out.println("Fetching real-time data from Frankfurter API...");
+    
+    double[][] exchangeRates = fetchRealTimeRates(currencies);
+    if (exchangeRates != null) {
+        System.out.println("\nExplanation: Real-world rates should not have arbitrage due to market efficiency");
+        detectArbitrage(currencies, exchangeRates);
+    } else {
+        System.out.println("Note: API fetch failed. This test requires internet connection.");
+        System.out.println("Using simulated real-world rates instead:");
+        // Fallback to realistic rates
+        testNoArbitrageCase();
+    }
+}
     
     /**
      * Generates a random n x n exchange rate matrix with positive rates.
@@ -125,7 +235,7 @@ public class CurrencyExchangeSystem {
     }
     
     /**
-     * Fetches real-time exchange rates from API for specified currencies.
+     * Fetches real-time exchange rates from Frankfurter API for specified currencies.
      * Uses USD as the base currency and calculates cross rates.
      * Manual JSON parsing without external libraries.
      * @param currencies Array of currency codes
@@ -137,15 +247,13 @@ public class CurrencyExchangeSystem {
             double[][] rates = new double[n][n];
             
             // Fetch rates with USD as base
-            System.out.println("API Request: " + API_URL + "USD");
-            URL url = new URL(API_URL + "USD");
+            URL url = new URL(API_URL + "?base=USD");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(5000);
             conn.setReadTimeout(5000);
             
             int responseCode = conn.getResponseCode();
-            System.out.println("API Response Code: " + responseCode);
             
             if (responseCode == 200) {
                 BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -158,15 +266,6 @@ public class CurrencyExchangeSystem {
                 in.close();
                 
                 String jsonResponse = response.toString();
-                
-                // Manual JSON parsing
-                System.out.println("\nParsing API Response...");
-                System.out.println("Raw JSON (first 200 chars): " + 
-                    jsonResponse.substring(0, Math.min(200, jsonResponse.length())) + "...\n");
-                
-                // Extract date
-                String date = extractJsonValue(jsonResponse, "date");
-                System.out.println("Data Date: " + date);
                 
                 // Store USD rates for each currency
                 double[] usdRates = new double[n];
@@ -190,8 +289,6 @@ public class CurrencyExchangeSystem {
                 }
                 
                 // Calculate cross rates: rate(i,j) = usdRates[j] / usdRates[i]
-                System.out.println("\nCalculating cross-rates...");
-                System.out.println("Formula: rate(i→j) = usdRate[j] / usdRate[i]");
                 
                 for (int i = 0; i < n; i++) {
                     for (int j = 0; j < n; j++) {
@@ -205,8 +302,7 @@ public class CurrencyExchangeSystem {
                     }
                 }
                 
-                System.out.println("✓ Real-time rates fetched successfully!");
-                System.out.println("  Timestamp: " + date);
+                System.out.println("Real-time rates fetched successfully!");
                 
                 return rates;
             } else {
@@ -219,24 +315,7 @@ public class CurrencyExchangeSystem {
             return null;
         }
     }
-    
-    /**
-     * Simple JSON value extractor for string values.
-     * @param json JSON string
-     * @param key Key to extract
-     * @return Value or "Unknown"
-     */
-    private static String extractJsonValue(String json, String key) {
-        String searchKey = "\"" + key + "\":\"";
-        int startIndex = json.indexOf(searchKey);
-        if (startIndex == -1) return "Unknown";
-        
-        startIndex += searchKey.length();
-        int endIndex = json.indexOf("\"", startIndex);
-        
-        if (endIndex == -1) return "Unknown";
-        return json.substring(startIndex, endIndex);
-    }
+
     
     /**
      * Extracts currency rate from JSON manually.
@@ -271,35 +350,6 @@ public class CurrencyExchangeSystem {
 
     
     /**
-     * Displays the exchange rate matrix in a formatted table.
-     * @param currencies Currency codes
-     * @param rates Exchange rates matrix
-     */
-    private static void displayExchangeRates(String[] currencies, double[][] rates) {
-        int n = currencies.length;
-        System.out.println("\n" + "=".repeat(60));
-        System.out.println("EXCHANGE RATE MATRIX");
-        System.out.println("=".repeat(60));
-        
-        // Header
-        System.out.print("FROM\\TO  ");
-        for (String currency : currencies) {
-            System.out.printf("%-12s", currency);
-        }
-        System.out.println();
-        System.out.println("-".repeat(10 + 12 * n));
-        
-        // Rows
-        for (int i = 0; i < n; i++) {
-            System.out.printf("%-9s", currencies[i]);
-            for (int j = 0; j < n; j++) {
-                System.out.printf("%-12.6f", rates[i][j]);
-            }
-            System.out.println();
-        }
-    }
-    
-    /**
      * TASK 1: Detects arbitrage opportunities using Bellman-Ford algorithm.
      * Uses -log transformation to convert product >1 to negative sum.
      * Returns true if arbitrage detected, false otherwise.
@@ -308,11 +358,13 @@ public class CurrencyExchangeSystem {
      * @return boolean indicating if arbitrage exists
      */
     public static boolean detectArbitrage(String[] currencies, double[][] exchangeRates) {
+        long startTime = System.nanoTime();
+        
         int n = currencies.length;
         
         System.out.println("\nStep 1: Transform exchange rates to negative logarithms");
         System.out.println("  Formula: w(u,v) = -log(r_uv)");
-        System.out.println("  Reason: Product of rates > 1 ⟺ Sum of weights < 0");
+        System.out.println("  Reason: Product of rates > 1 <-> Sum of weights < 0");
         
         // Convert to negative logarithms, handle invalid rates
         double[][] logRates = new double[n][n];
@@ -377,22 +429,26 @@ public class CurrencyExchangeSystem {
         }
         
         if (hasNegativeCycle) {
-            System.out.println("\n✓ ARBITRAGE OPPORTUNITY DETECTED!");
+            System.out.println("\nARBITRAGE OPPORTUNITY DETECTED!");
             if (arbitrageStart != -1) {
                 printArbitrageCycle(predecessors, arbitrageStart, currencies, exchangeRates);
             } else {
                 System.out.println("Arbitrage detected but cycle reconstruction failed.");
             }
-            return true;
         } else {
-            System.out.println("\n✗ No arbitrage opportunities detected.");
+            System.out.println("\nNo arbitrage opportunities detected.");
             System.out.println("  (Market is in equilibrium - no negative cycles exist)");
-            return false;
         }
+        
+        double timeMs = (System.nanoTime() - startTime) / 1_000_000.0;
+        System.out.println("\nExecution time for arbitrage detection: " + String.format("%.3f", timeMs) + " ms");
+        
+        return hasNegativeCycle;
     }
     
     /**
      * Reconstructs and prints the arbitrage cycle using predecessors.
+     * Prints sequence v0, v1, ..., vk-1 as per spec.
      * @param predecessors Predecessor array
      * @param start Starting vertex for tracing
      * @param currencies Currency codes
@@ -427,7 +483,7 @@ public class CurrencyExchangeSystem {
             return;
         }
         
-        cycle.add(cycleStart);  // Close the cycle
+        // Do not add closing for spec: v0 to vk-1
         Collections.reverse(cycle);
         
         // Calculate product
@@ -435,7 +491,7 @@ public class CurrencyExchangeSystem {
         System.out.println("\nArbitrage Cycle Details:");
         System.out.println("-".repeat(60));
         
-        for (int i = 0; i < cycle.size() - 1; i++) {  // -1 to avoid double closing
+        for (int i = 0; i < cycle.size() - 1; i++) {
             int from = cycle.get(i);
             int to = cycle.get(i + 1);
             double rate = exchangeRates[from][to];
@@ -445,14 +501,23 @@ public class CurrencyExchangeSystem {
                 currencies[from], currencies[to], rate);
         }
         
+        // Closing product with last to first
+        int last = cycle.get(cycle.size() - 1);
+        int first = cycle.get(0);
+        double closingRate = exchangeRates[last][first];
+        productOfRates *= closingRate;
+        System.out.printf("  %s -> %s: %.6f\n", 
+            currencies[last], currencies[first], closingRate);
+        
         double profitPercentage = (productOfRates - 1.0) * 100;
         
-        System.out.println("\nCycle Path: ");
+        System.out.println("\nCycle Sequence (v0, v1, ..., vk-1): ");
         System.out.print("  ");
-        for (int idx : cycle) {
-            System.out.print(currencies[idx] + " → ");
+        for (int i = 0; i < cycle.size(); i++) {
+            System.out.print(currencies[cycle.get(i)]);
+            if (i < cycle.size() - 1) System.out.print(", ");
         }
-        System.out.println(currencies[cycle.get(0)]);  // Close
+        System.out.println();
         
         System.out.printf("\nProduct of exchange rates: %.6f\n", productOfRates);
         System.out.printf("Profit Percentage: %.2f%%\n", profitPercentage);
@@ -474,6 +539,8 @@ public class CurrencyExchangeSystem {
      */
     public static void findBestConversionRate(String[] currencies, double[][] exchangeRates, 
                                              String source, String target) {
+        long startTime = System.nanoTime();
+        
         int n = currencies.length;
         int sourceIndex = -1, targetIndex = -1;
         
@@ -613,5 +680,8 @@ public class CurrencyExchangeSystem {
         // Example
         System.out.println("\nExample:");
         System.out.printf("  1000 %s → %.2f %s\n", source, 1000 * totalRate, target);
+        
+        double timeMs = (System.nanoTime() - startTime) / 1_000_000.0;
+        System.out.println("\nExecution time for best conversion: " + String.format("%.3f", timeMs) + " ms");
     }
-}  
+}
