@@ -524,7 +524,7 @@ private static void testRealWorldRates() {
         
         if (profitPercentage > 0) {
             System.out.println("\nExample: Starting with 1000 " + currencies[cycle.get(0)] + 
-                             " → End with " + String.format("%.2f", 1000 * productOfRates) + 
+                             " -> End with " + String.format("%.2f", 1000 * productOfRates) + 
                              " " + currencies[cycle.get(0)]);
         }
     }
@@ -539,7 +539,6 @@ private static void testRealWorldRates() {
      */
     public static void findBestConversionRate(String[] currencies, double[][] exchangeRates, 
                                              String source, String target) {
-        long startTime = System.nanoTime();
         
         int n = currencies.length;
         int sourceIndex = -1, targetIndex = -1;
@@ -635,53 +634,45 @@ private static void testRealWorldRates() {
         Collections.reverse(path);
         
         // Display
-        System.out.println("=".repeat(60));
         System.out.println("OPTIMAL CONVERSION PATH");
-        System.out.println("=".repeat(60));
         
         System.out.print("\nPath: ");
         for (int i = 0; i < path.size(); i++) {
             System.out.print(currencies[path.get(i)]);
-            if (i < path.size() - 1) System.out.print(" → ");
+            if (i < path.size() - 1) System.out.print(" -> ");
         }
         System.out.println("\n");
         
         // Calculate rate
         double totalRate = 1.0;
         System.out.println("Exchange Details:");
-        System.out.println("-".repeat(60));
         
         for (int i = 0; i < path.size() - 1; i++) {
             int from = path.get(i);
             int to = path.get(i + 1);
             double rate = exchangeRates[from][to];
             totalRate *= rate;
-            System.out.printf("  %s → %s: %.6f\n", 
+            System.out.printf("  %s -> %s: %.6f\n", 
                 currencies[from], currencies[to], rate);
         }
         
-        System.out.println("\n" + "=".repeat(60));
         System.out.printf("Best Conversion Rate: %.6f\n", totalRate);
-        System.out.println("=".repeat(60));
         
         // Compare with direct
         double directRate = exchangeRates[sourceIndex][targetIndex];
-        System.out.printf("\nDirect rate (%s → %s): %.6f\n", source, target, directRate);
+        System.out.printf("\nDirect rate (%s -> %s): %.6f\n", source, target, directRate);
         
         if (Math.abs(totalRate - directRate) < EPSILON) {
-            System.out.println("→ Direct exchange is optimal!");
+            System.out.println("Direct exchange is optimal!");
         } else if (totalRate > directRate + EPSILON) {
             double improvement = ((totalRate / directRate) - 1.0) * 100;
-            System.out.printf("→ Multi-step exchange is %.2f%% better!\n", improvement);
+            System.out.printf("Multi-step exchange is %.2f%% better!\n", improvement);
         } else {
-            System.out.println("→ Multi-step exchange is worse (should not happen in arb-free graph).");
+            System.out.println("Multi-step exchange is worse (should not happen in arb-free graph).");
         }
         
         // Example
         System.out.println("\nExample:");
-        System.out.printf("  1000 %s → %.2f %s\n", source, 1000 * totalRate, target);
-        
-        double timeMs = (System.nanoTime() - startTime) / 1_000_000.0;
-        System.out.println("\nExecution time for best conversion: " + String.format("%.3f", timeMs) + " ms");
+        System.out.printf("  1000 %s -> %.2f %s\n", source, 1000 * totalRate, target);
     }
 }
