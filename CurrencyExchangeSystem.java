@@ -71,7 +71,11 @@ public class CurrencyExchangeSystem {
         String target = scanner.nextLine().toUpperCase().trim();
         
         if (Arrays.asList(currencies).contains(source) && Arrays.asList(currencies).contains(target)) {
-            findBestConversionRate(currencies, exchangeRates, source, target);
+            List<Integer> arbitrageCycle = new ArrayList<>();
+            if (hasArbitrage) {
+                arbitrageCycle = findArbitrageCycle(currencies, exchangeRates);
+            }
+            findBestConversionRate(currencies, exchangeRates, source, target, arbitrageCycle);
         } else {
             System.out.println("Error: Invalid currency code(s). Please use one of the available currencies.");
         }
@@ -110,9 +114,9 @@ public class CurrencyExchangeSystem {
         String[] currencies = {"A", "B", "C", "D", "E"};
         double[][] exchangeRates = new double[5][5];
         // Original 3x3
-        exchangeRates[0] = new double[]{1.0, 0.651, 0.584, 1.0, 1.0};
-        exchangeRates[1] = new double[]{1.536, 1.0, 0.952, 1.0, 1.0};
-        exchangeRates[2] = new double[]{1.711, 1.050, 1.0, 1.0, 1.0};
+        exchangeRates[0] = new double[]{1.0, 0.651, 0.581, 1.0, 1.0};
+        exchangeRates[1] = new double[]{1.531, 1.0, 0.952, 1.0, 1.0};
+        exchangeRates[2] = new double[]{1.711, 1.049, 1.0, 1.0, 1.0};
         exchangeRates[3] = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         exchangeRates[4] = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
         detectArbitrage(currencies, exchangeRates);
@@ -164,7 +168,8 @@ public class CurrencyExchangeSystem {
         boolean hasArbitrage = detectArbitrage(currencies, exchangeRates);
         if (!hasArbitrage) {
             // Test best conversion A to C, should use via B, rate 4 >1 direct
-            findBestConversionRate(currencies, exchangeRates, "A", "C");
+            List<Integer> arbitrageCycle = new ArrayList<>();
+            findBestConversionRate(currencies, exchangeRates, "A", "C", arbitrageCycle);
         }
     }
 
@@ -537,8 +542,54 @@ private static void testRealWorldRates() {
      * @param source Source currency
      * @param target Target currency
      */
+    private static List<Integer> findArbitrageCycle(String[] currencies, double[][] exchangeRates) {
+        int n = currencies.length;
+        double[][] logRates = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                logRates[i][j] = -Math.log(exchangeRates[i][j]);
+            }
+        }
+        
+        double[] distances = new double[n];
+        int[] predecessors = new int[n];
+        Arrays.fill(distances, Double.MAX_VALUE);
+        distances[0] = 0;
+        
+        int cycleStart = -1;
+        for (int k = 0; k < n; k++) {
+            cycleStart = -1;
+            for (int u = 0; u < n; u++) {
+                for (int v = 0; v < n; v++) {
+                    if (distances[u] != Double.MAX_VALUE && 
+                        distances[u] + logRates[u][v] < distances[v] - EPSILON) {
+                        distances[v] = distances[u] + logRates[u][v];
+                        predecessors[v] = u;
+                        cycleStart = v;
+                    }
+                }
+            }
+        }
+        
+        if (cycleStart == -1) {
+            return new ArrayList<>();
+        }
+        
+        List<Integer> cycle = new ArrayList<>();
+        boolean[] visited = new boolean[n];
+        int current = cycleStart;
+        while (!visited[current]) {
+            visited[current] = true;
+            cycle.add(current);
+            current = predecessors[current];
+        }
+        
+        int startIndex = cycle.indexOf(current);
+        return new ArrayList<>(cycle.subList(startIndex, cycle.size()));
+    }
+    
     public static void findBestConversionRate(String[] currencies, double[][] exchangeRates, 
-                                             String source, String target) {
+                                             String source, String target, List<Integer> arbitrageCycle) {
         
         int n = currencies.length;
         int sourceIndex = -1, targetIndex = -1;
@@ -599,53 +650,39 @@ private static void testRealWorldRates() {
             }
         }
         
-        // Check for negative cycle affecting the path (though assumed no arb)
-        boolean hasNegativeCycle = false;
-        for (int u = 0; u < n; u++) {
-            for (int v = 0; v < n; v++) {
-                if (distances[u] != Double.MAX_VALUE && 
-                    distances[u] + logRates[u][v] < distances[v] - EPSILON) {
-                    hasNegativeCycle = true;
-                }
-            }
-        }
-        if (hasNegativeCycle) {
-            System.out.println("Warning: Negative cycle detected; rates may be infinite.");
-        }
-        
-        System.out.println("Step 4: Reconstruct optimal path\n");
-        
-        if (distances[targetIndex] == Double.MAX_VALUE) {
-            System.out.println("No path exists between " + source + " and " + target);
-            return;
-        }
-        
-        // Reconstruct path
+        // Find the basic path first, with cycle detection
         List<Integer> path = new ArrayList<>();
+        Set<Integer> visited = new HashSet<>();
         int current = targetIndex;
-        while (current != -1) {
+        
+        while (current != -1 && !visited.contains(current)) {
             path.add(current);
+            visited.add(current);
             current = predecessors[current];
         }
-        if (path.get(path.size() - 1) != sourceIndex) {
-            System.out.println("Path reconstruction failed.");
-            return;
+        
+        if (current == -1) {
+            if (path.get(path.size() - 1) != sourceIndex) {
+                System.out.println("Path reconstruction failed: Did not reach source currency.");
+                return;
+            }
+        } else {
+            // We found a cycle
+            System.out.println("\nWarning: Cycle detected in path reconstruction!");
+            System.out.println("This indicates an arbitrage opportunity that affects the optimal path.");
+            System.out.println("Will show the basic path ignoring potential infinite improvements.");
+            
+            // Truncate the path at the cycle point
+            int cycleIndex = path.indexOf(current);
+            path = new ArrayList<>(path.subList(0, cycleIndex + 1));
         }
+        
         Collections.reverse(path);
         
-        // Display
-        System.out.println("OPTIMAL CONVERSION PATH");
-        
-        System.out.print("\nPath: ");
-        for (int i = 0; i < path.size(); i++) {
-            System.out.print(currencies[path.get(i)]);
-            if (i < path.size() - 1) System.out.print(" -> ");
-        }
-        System.out.println("\n");
-        
-        // Calculate rate
+        // Calculate and display the basic conversion rate
         double totalRate = 1.0;
-        System.out.println("Exchange Details:");
+        System.out.println("\nBasic Conversion Path:");
+        System.out.println("-".repeat(60));
         
         for (int i = 0; i < path.size() - 1; i++) {
             int from = path.get(i);
@@ -656,23 +693,51 @@ private static void testRealWorldRates() {
                 currencies[from], currencies[to], rate);
         }
         
-        System.out.printf("Best Conversion Rate: %.6f\n", totalRate);
+        System.out.printf("\nBasic Conversion Rate: %.6f\n", totalRate);
         
-        // Compare with direct
-        double directRate = exchangeRates[sourceIndex][targetIndex];
-        System.out.printf("\nDirect rate (%s -> %s): %.6f\n", source, target, directRate);
-        
-        if (Math.abs(totalRate - directRate) < EPSILON) {
-            System.out.println("Direct exchange is optimal!");
-        } else if (totalRate > directRate + EPSILON) {
-            double improvement = ((totalRate / directRate) - 1.0) * 100;
-            System.out.printf("Multi-step exchange is %.2f%% better!\n", improvement);
-        } else {
-            System.out.println("Multi-step exchange is worse (should not happen in arb-free graph).");
+        // If there's an arbitrage cycle, show how it can be exploited
+        if (!arbitrageCycle.isEmpty()) {
+            System.out.println("\nArbitrage Opportunity Found!");
+            System.out.println("The rate can be improved using this cycle:");
+            System.out.println("-".repeat(60));
+            
+            double cycleRate = 1.0;
+            for (int i = 0; i < arbitrageCycle.size(); i++) {
+                int from = arbitrageCycle.get(i);
+                int to = arbitrageCycle.get((i + 1) % arbitrageCycle.size());
+                cycleRate *= exchangeRates[from][to];
+                System.out.printf("  %s -> %s: %.6f\n", 
+                    currencies[from], currencies[to], exchangeRates[from][to]);
+            }
+            
+            System.out.printf("\nCycle Multiplication Factor: %.6f\n", cycleRate);
+            
+            // Show example with starting amount and improvements
+            double startAmount = 1000;
+            System.out.printf("\nExample starting with %.2f %s:\n", startAmount, source);
+            System.out.printf("1. Basic conversion: %.2f %s\n", startAmount * totalRate, target);
+            
+            double improvedRate = totalRate * cycleRate;
+            System.out.printf("2. With one arbitrage cycle: %.2f %s\n", startAmount * improvedRate, target);
+            System.out.printf("3. With two arbitrage cycles: %.2f %s\n", startAmount * improvedRate * cycleRate, target);
+            System.out.println("\nEach additional cycle will multiply the rate by: " + String.format("%.6f", cycleRate));
         }
         
-        // Example
-        System.out.println("\nExample:");
-        System.out.printf("  1000 %s -> %.2f %s\n", source, 1000 * totalRate, target);
+        // Compare with direct conversion if no arbitrage
+        if (arbitrageCycle.isEmpty()) {
+            double directRate = exchangeRates[sourceIndex][targetIndex];
+            System.out.printf("\nDirect rate (%s -> %s): %.6f\n", source, target, directRate);
+            
+            if (Math.abs(totalRate - directRate) < EPSILON) {
+                System.out.println("Direct exchange is optimal!");
+            } else if (totalRate > directRate + EPSILON) {
+                double improvement = ((totalRate / directRate) - 1.0) * 100;
+                System.out.printf("Multi-step exchange is %.2f%% better!\n", improvement);
+            }
+            
+            // Example with optimal rate
+            System.out.println("\nExample:");
+            System.out.printf("  1000 %s -> %.2f %s\n", source, 1000 * totalRate, target);
+        }
     }
 }
